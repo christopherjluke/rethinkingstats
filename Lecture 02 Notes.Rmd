@@ -1,0 +1,104 @@
+---
+title: "Statistical Rethinking Lecture 02"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+---
+
+<b>01. Introduction</b>
+
+Globe tossing data set:
+L W L L W W W L W W
+
+How should we use the sample?
+How to produce a summary?
+How to represent uncertatiny? More data is better obviously.
+
+Use Bayesian data analysis:
+For each possible explanation of the data,
+Count all the ways data can happen.
+Explanations with more ways to produce the data are more plausible.
+
+This is too complicated to start with applying to globe problem,
+each proportion is a possible explanation and there are infinite
+number of real numbers between 0 and 1.
+
+Start with something easier.
+
+<b>02. Garden of Forking Data</b>
+
+4 marbles in a bag.
+
+Possible contents:
+(1) 0 b, 4 w (0) # Forbidden by logic
+(2) 1 b, 3 w (3 ways to produce)
+(3) 2 b, 2 w (8 ways to produce)
+(4) 3 b, 1 w (9 ways to produce)
+(5) 4 b, 0 w (0) # Forbidden by logic
+
+Observe B, W, B
+
+Bayes method:
+Take each possible explanation and count all the ways that can arise given that assumption. Gonna assume (2) as reality. (<b>Figure 2.2</b>: Draw out all possible events from each sample)
+
+<b>03. Counts to plausibility</b>
+Unglamorous basis of applied probability:
+<i>Things that can happen more ways are plausible</i>
+
+p = proportion of blue marble in the bag
+
+(1) 0 b, 4 w (p=0) (0) # Forbidden by logic
+(2) 1 b, 3 w (p=.25) (3 ways to produce)
+(3) 2 b, 2 w (p=.5) (8 ways to produce)
+(4) 3 b, 1 w (p=.75) (9 ways to produce)
+(5) 4 b, 0 w (p=1) (0) # Forbidden by logic
+
+plausibility:
+0
+0.15
+0.40
+0.45
+0
+
+<b>Plausibility</b>:
+```{r}
+ways <- c(3, 8, 9)
+ways/sum(ways)
+```
+
+<b>04. Updating</b>
+
+When new data arrives we don't have to redo the whole calculation, just take old answer and update.
+
+i.e we draw another marble and it is B.
+
+Instead of redrawing garden, we can multiply the previous counts.
+
+<b>Bayesian updating</b>:
+
+RULES
+1. State a causual model for how the observations arise, given each possible explanation
+
+2. Count ways data could arrise for each explanation
+
+3. Relative plausibility is relative from rule 2
+
+<b>04. Forking Globe Tossing</b>
+
+Desnity: Relative plausibility
+
+```{r}
+plot (0:10 * 10:0 * 10:0 * 10:0)
+```
+
+Curve gets narrow and taller, area under the curve is fixed to 1. As it gets concentrated it gets taller because the area needs to be the same.
+
+(1) No minimum sample size in this business. How we explore implications of the model before adding the evidence. You don't learn a lot from one sample, one data point is worth updating because most explanations are still in play.
+
+(2) Shape of posterior distribution embodies sample size. In other frameworks, sample size has a magical quality, but no comparable role in Bayesian analysis. Sample size does matter though, more data = curve gets narrow and taller.
+
+(3) No point estimate. The estimate is the curve. On a curve you can take a lot of points, like mode or mean to summarize a curve.The distribution is the estimate, always use the entire distribution. Summary is always teh last step.
+
+(4) Intervals do not have a strong role to play in Bayesian inference. You can report any interval you want, all it does communicates the shape of the posterior distribution. "95% is obvious superstition. Nothing magic happens at the boundary." That an arbitrary interval contains an arbitray value  is not meaningful. <b>Use the whole distribution.</b>
