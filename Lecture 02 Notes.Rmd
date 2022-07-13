@@ -235,7 +235,7 @@ Predictive distributions not for prosterior but for the prior. Every posterior u
 
 For more complicated models with a number of parameters, and we need to choose a prior for each, those priors don't have meaning in isolation. We can always understand them by simulating observables from the model. We know what is scientifically reasonable.
 
-** 09. Bayesian data analysis **
+**09. Bayesian data analysis**
 
 For each possible explanation of the data,
 count all the ways data can happen.
