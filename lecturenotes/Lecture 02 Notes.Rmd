@@ -1,1 +1,251 @@
+---
+title: "Statistical Rethinking Lecture 02"
+output: html_notebook
+---
 
+**01. Introduction**
+
+Globe tossing data set: L W L L W W W L W W
+
+How should we use the sample? How to produce a summary? How to represent
+uncertatiny? More data is better obviously.
+
+Use Bayesian data analysis: For each possible explanation of the data,
+Count all the ways data can happen. Explanations with more ways to
+produce the data are more plausible.
+
+This is too complicated to start with applying to globe problem, each
+proportion is a possible explanation and there are infinite number of
+real numbers between 0 and 1.
+
+Start with something easier.
+
+**02. Garden of Forking Data**
+
+4 marbles in a bag.
+
+Possible contents: (1) 0 b, 4 w (0) \# Forbidden by logic (2) 1 b, 3 w
+(3 ways to produce) (3) 2 b, 2 w (8 ways to produce) (4) 3 b, 1 w (9
+ways to produce) (5) 4 b, 0 w (0) \# Forbidden by logic
+
+Observe B, W, B
+
+Bayes method: Take each possible explanation and count all the ways that
+can arise given that assumption. Gonna assume (2) as reality. (<b>Figure
+2.2</b>: Draw out all possible events from each sample)
+
+**03. Counts to plausibility** 
+
+Unglamorous basis of applied probability: *Things that can happen more ways are plausible.*
+
+p = proportion of blue marble in the bag
+
+(1) 0 b, 4 w (p=0) (0) \# Forbidden by logic
+(2) 1 b, 3 w (p=.25) (3 ways to produce)
+(3) 2 b, 2 w (p=.5) (8 ways to produce)
+(4) 3 b, 1 w (p=.75) (9 ways to produce)
+(5) 4 b, 0 w (p=1) (0) \# Forbidden by logic
+
+plausibility: 0 0.15 0.40 0.45 0
+
+**Plausibility**:
+
+```{r}
+ways <- c(3, 8, 9)
+ways/sum(ways)
+```
+
+**04. Updating**
+
+When new data arrives we don't have to redo the whole calculation, just
+take old answer and update.
+
+i.e we draw another marble and it is B.
+
+Instead of redrawing garden, we can multiply the previous counts.
+
+**Bayesian updating**:
+
+RULES 1. State a causual model for how the observations arise, given
+each possible explanation
+
+2.  Count ways data could arrise for each explanation
+
+3.  Relative plausibility is relative from rule 2
+
+**04. Forking Globe Tossing**
+
+Desnity: Relative plausibility
+
+```{r}
+plot (0:10 * 10:0 * 10:0 * 10:0)
+```
+
+Curve gets narrow and taller, area under the curve is fixed to 1. As it
+gets concentrated it gets taller because the area needs to be the same.
+
+(1) No minimum sample size in this business. How we explore implications
+    of the model before adding the evidence. You don't learn a lot from
+    one sample, one data point is worth updating because most
+    explanations are still in play.
+
+(2) Shape of posterior distribution embodies sample size. In other
+    frameworks, sample size has a magical quality, but no comparable
+    role in Bayesian analysis. Sample size does matter though, more data
+    = curve gets narrow and taller.
+
+(3) No point estimate. The estimate is the curve. On a curve you can
+    take a lot of points, like mode or mean to summarize a curve.The
+    distribution is the estimate, always use the entire distribution.
+    Summary is always teh last step.
+
+(4) Intervals do not have a strong role to play in Bayesian inference.
+    You can report any interval you want, all it does communicates the
+    shape of the posterior distribution. "95% is obvious superstition.
+    Nothing magic happens at the boundary." That an arbitrary interval
+    contains an arbitray value is not meaningful. **Use the whole
+    distribution.**
+
+**05. Formalities**
+
+In practice, we write the model in a way that commuicates all of the
+probability assumptions.
+
+The observations (**data**) and explanations (**parameters**) are
+variables.
+
+For each variable, must say how it is generated.
+
+**Binomial denisity code**
+(6 waters, out of 9 tosses, assuming globe is covered in 70% of wall)
+
+```{r}
+dbinom (6, 9, 0.7)
+```
+
+Parameters: p, the proportion of water on the globe.
+Pr(p) = 1 / 1-0 = 1 # Relative plausibility of each possible p, gives us the relative plausibility of each possible p before we see the data.
+
+**With Numbers**
+1. For each possible value of p
+2. Compute product Pr(W,L|p)Pr(p)
+3. Relative sizes of products in step 2 are posterior probabilities
+
+**06. Grid Approximation**
+
+"Draw the owl"
+```{r}
+p_grid <- seq(from=0, to=1, length.out=1000)
+prob_p <- rep(1, 1000)
+prob_data <- dbinom(6, size=9, prob=p_grid)
+posterior <- prob_data* prob_p
+posterior <- posterior / sum(posterior)
+plot(posterior)
+```
+
+p_grid: sets up grid, list of possible explanations: sequence of 0 to 1, 1000 of them evenly splaced and plotted
+
+prob_p: prior probability of each value of p, repeated 1 to 1000 times because that is the prior distribution
+
+prob_data: probability of W, L samples, binomial sampling formula which gets us the curve
+
+posterior: multiplying probability of data by paramater p
+
+posterior: normalize previous line, vertical axis will have different units because it is now a probability distribution.
+
+```{r}
+p_grid <- seq(from=0, to=1, len=1000)
+prob_p <- dbeta(p_grid, 3, 1)
+prob_data <- dbinom(6, 9, prob=p_grid)
+posterior <- prob_data * prob_p
+posterior <- posterior / sum(posterior)
+plot(prob_p)
+plot(posterior)
+```
+
+p_grid: same grid as before
+prob_p: prior that consider wetter worlds more plausible. wrong in the sense that its maximized to the far right
+prob_data: same as before
+posterior: shifted right from previous prior
+
+**07. Many Ways to Count**
+Grid approximation inefficent.
+
+Other methods:
+Quadratic Approxmation
+Markov chain Monte Carlo (MCMC)
+
+**From Posterior to Prediction**
+
+Implications of model depend upon **entire** posterior
+**Must average any inference over entire posterior
+This usually requires integral calculus
+OR we can just take samples from the posterior
+
+*A model's behavior is a function of all of its parameters simultanousely and they interact in non-additive ways.*
+
+Uncertainty -> Causal model -> Implications
+
+Any time we do calulations with Bayesian models we take the posterior distribution, sample values from it, and from each of those sampled values we do additional calculations, collect those calculations, and have a new distribution (distribution of predictions).
+
+*Sample from posterior*
+```{r}
+p_grid <- seq (from=0, to=1, length.out=1000)
+prob_p <- rep(1, 1000)
+prob_data <- dbinom(6, size=9, prob=p_grid)
+posterior <- prob_data * prob_p
+posterior <- posterior / sum(posterior)
+```
+
+This takes samples from posterior distribution
+```{r}
+samples <- sample(p_grid, prob=posterior, size=1e4, replace=TRUE)
+```
+Sample(from the grid (list of possible explanations of data), prob=posterior(sample in proportion to posterior probabilities, size=sample 10000, and then replace))
+
+```{r}
+plot(samples)
+```
+
+Random binomail samples
+```{r}
+w <- rbinom(1e4, size=9, prob=samples)
+```
+w is a vector of 10,000 random binomial sample, 9 tosses of the globe, probability comes from samples (10,000 different probabilties each used once)
+
+**08. Sampling is Fun & Easy**
+
+Sample from posterior, compute desired quantity for each sample, profit
+
+Much easier than doing integrals
+
+Turn a **calculus problem** into a **data summary problem**
+
+MCMC produces only samples anyway, so we need skills to use MCMC and most applied Bayesian work.
+
+Things we'll compute with sampling:
+Model-based forecasts
+Causal effects (Marginal effects)
+Conterfactuals (What if something had been different)
+Prior predictions (Understand models and design them)
+
+**Prior predictions**
+
+Predictive distributions not for prosterior but for the prior. Every posterior used to be a prior, and every prior hopes to be a posterior.
+
+For more complicated models with a number of parameters, and we need to choose a prior for each, those priors don't have meaning in isolation. We can always understand them by simulating observables from the model. We know what is scientifically reasonable.
+
+** 09. Bayesian data analysis **
+
+For each possible explanation of the data,
+count all the ways data can happen.
+
+Explanations with more ways to produce the data are more plausible.
+
+No guarantees except *logical*
+
+Probability theory is a method of logically deducing *implications of data* under assumptions that you must choose
+
+Any framework selling you more is hiding assumptions
+
+Put some causes in to get some causes out.
