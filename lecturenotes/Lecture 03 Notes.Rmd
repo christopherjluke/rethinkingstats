@@ -1,0 +1,347 @@
+---
+title: "Statistical Rethinking Lecture 03"
+output: html_notebook
+---
+
+**01. Introduction**
+
+Explanation vs. Prediction
+
+Prediction without explanation is routine in statistical science. 
+
+Geocentricism:
+- Descriptively accurate
+- Mechanicistcally wrong
+- General method of approximation
+- Known to be wrong
+
+Linear Regression:
+- Descriptively accurate (describe all manner of observations)
+- Mecanistically wrong (nature is not composed of straight lines)
+- General method of approximation
+- Taken too seriously
+
+What are linear regression?
+Simple statistical golems, model of **mean** and **variance** of variables. Mean as **weighted sum** of other variables. Many specific cases: ANOVA, ANCOVA, t-test, MANOVA. Can also be a generative models at a high level of description.
+
+
+**02. Why Normal?**
+
+In bayesian statistics is quite traditional.
+
+1809: Bayesian argument for normal error, and least-squares estimation. 
+
+This is the reason why normal distribution is named after Gauss (Gaussian Distribution)
+
+Where does normal distribution come from? Important cause it counts out all the ways the observation happens. Given some mean expectation and variance, the normal distribution gives you the relative number of ways that the data can appear.
+
+Gaussian distribution's arise from summed up deviations or fluxuations.
+
+To end up far out in a gaussian distribution, you'd need a long string of one result. If it's a mix then you'll remain relatively close to the middle.
+
+**Why Normal?**
+(1) Generative: Summed fluctuations tend towards normal distribution
+(2) Statistical: For estimating mean and variance, normal distribution is least informative distribution. The only information in it is that there is a mean and variance that exists, and then widest probability of dispersion (maximum entropy).
+
+** Variable does not have to be normally distributed for normal model to be useful **
+
+**Making Normal Models**
+Goals:
+(1) Language for representing models
+(2) How to calculate bigger posterior distributions
+(3) Constructing & understanding linear models
+
+**03. Language for Modeling**
+
+Revisit globe tossing model:
+
+W ~ Binomial(N,p)
+p ~ Uniform(0, 1)
+
+N is sample size, p is paramater of interest
+
+Outcome variable -> W ~ (is distributed) Binomial(N,p) <- Data distribution
+
+Parameter to estimate -> p ~ Uniform(0,1) <- prior distrubiton (uniform from 0 to 1)
+
+Posterior distribution: probability of each value of p conditional on the data (W, N) proportional to probability
+
+Pr(p|W, N) proportional to Binomial(W|N,p) Uniform(p|0,1)
+```{r}
+W <- 6
+N <- 9
+p <- seq(from=0, to=1, len=1000)
+PrW <- dbinom(W, N, p)
+Prp <- dunif(p,0,1)
+posterior <- PrW * Prp
+plot(posterior)
+```
+
+**04. Linear Regression**
+
+"Drawing the owl"
+
+(1) Question/goal/estimand
+Describe the association between *weight* and *height*
+
+(2) Scientific model
+
+How does *height* influence *weight*?
+H >> W
+
+W = f(H) # "Weight is some function of height"
+
+Arrow (DAG) tells us the consequence of intervention. If we change their height we change their weight.
+
+(3) Statistical model(s)
+
+(4) Validate model
+
+(5) Analyze data
+
+```{r}
+library(rethinking)
+data(Howell1)
+d <- Howell1
+d2 <- Howell1[Howell1$age>=18,]
+```
+
+**Generative models**
+
+We can make models at different levels:
+(1) Dynamic: Incremental growth of the organism over time, both mass and height derive from growth pattern; Gaussian variation result of summed fluctuations
+
+(2) Static: Change in ehight result in changes in weight, but no mechanism; Gaussian variation result of growth history. There is some causation in this model, but no mechanism to why it works that way.
+
+** Anatomy of a linear model **
+Y = intercept (alpha) + slope (slope) * X-value
+
+In a linear regression, the equation for the line doesn't tell you where the observed value on the y-values are, it tells you where the mean values are (the expectation of the observed values)
+
+```{r}
+alpha <- 0
+beta <- 0.5
+sigma <- 5
+n_individuals <- 100
+
+H <- runif(n_individuals,130,170)
+
+mu <- alpha + beta*H
+W <- rnorm(n_individuals, mu, sigma)
+plot(H, ylim=c(55, 90))
+```
+
+**05. Linear models, statistical**
+
+**Anatomy of a linear model**
+We need priors, we don't know the values of alpha, beta, and sigma, we have to learn them. There will be posterior distributions for them. They'll jointly define where the model thinks (weights will be given heights)
+
+Sigma is uniform because it has to be positive (standard deviation). Sigma is also scaled, their value stretches some distribution and scales it.
+
+Lines are defined by intercept and slope, sigma creates the scatter.
+
+```{r}
+n_samples <- 10
+alpha <- rnorm(n_samples, 0, 1)
+beta <- rnorm(n_samples, 0, 1)
+
+plot(NULL, xlim=c(-2, 2), ylim=c(-2,2),
+     xlab="x", ylab="y")
+for (i in 1:n_samples)
+  abline(alpha[i], beta[i], lwd=4, col=2)
+```
+
+**Bayesian Updating**
+
+Works the same way as above. Add random data points, then update the prior distribution.
+
+Structure of statistical model similiar to generative model, BUT
+
+(1) Useful to re-scale variables
+(2) Must think about priors
+
+*These two things go together*
+
+**Statistical model for H -> W**
+
+Re-scaling *height* so that the *intercept* makes sense (xbar).
+
+value of sigma when individual height minus mean of height.
+
+Alpha: average adult weight
+Beta: how many kilograms per centimeter of height
+Sigma: Uniform distribution between 0 and 10
+
+```{r}
+n <- 10
+alpha <- rnorm(n, 60, 10)
+beta <- rnorm(n, 0, 10)
+
+Hbar <- 150
+Hseq <- seq(from=130, to=170, len=30)
+plot(NULL, xlim=c(130, 170), ylim=c(10,100),
+     xlab="height (cm)", ylab="weight (kg)")
+for (i in 1:n)
+  lines(Hseq, alpha[i] + beta[i] * (Hseq-Hbar),
+        lwd=3, col=2)
+```
+
+This model doesn't work because we made the prior for beta cemetric around 0. We can fix it by using distribution that's constrained to be positive (LogNormal).
+
+LogNormal distribution, if you took the logarithim of all the values in it  the distribution would be normal.
+
+```{r}
+n <- 10
+alpha <- rnorm(n, 60, 10)
+beta <- rlnorm(n, 0, 1)
+
+Hbar <- 150
+Hseq <- seq(from=130, to=170, len=30)
+plot(NULL, xlim=c(130, 170), ylim=c(10,100),
+     xlab="height (cm)", ylab="weight (kg)")
+for (i in 1:n)
+  lines(Hseq, alpha[i] + beta[i] * (Hseq-Hbar),
+        lwd=3, col=2)
+```
+
+**Sermon on Priors**
+
+There are no correct priors, only scientifically justifiable priors.
+
+Justify with the information outside the data -- *like the rest of model* (using the sample itself is cheating, leads to massive false positives)
+
+Priors not so important in simple linear models
+
+But need to practice now: simulate, understand, expand.
+
+**Fitting the model**
+
+Instead of grid approximation to get the posterior distribution (100 values of each paramter => 1 million calcuations), this code does those calculations:
+
+```{r}
+mu.list <- seq(from=150, to=160, length.out=100)
+sigma.list <- seq(from=7, to=9, length.out=100)
+post <- expand.grid(mu=mu.list, sigma=sigma.list)
+post$LL <- sapply(1:nrow(post), function (i) sum(
+  dnorm(d2$height, post$mu[i], post$sigma[i], log=TRUE)))
+post$prod <- post$LL + dnorm(post$mu, 178, 20, TRUE) +
+  dunif(post$sigma, 0, 50, TRUE)
+post$prob <- exp(post$prod - max(post$prod))
+contour_xyz(post$mu, post$sigma, post$prob)
+image_xyz(post$mu, post$sigma, post$prob)
+```
+
+**Approximate posterior**
+
+Many posterior distributions are approximately Gaussian
+
+Instead of grad approximation, Gaussian approximation
+
+Sometimes called *quadratic* or *Laplace approximation* (pg. 41 in book)
+
+Function in rethinking backage (quap)
+
+**Simulation-Based Valuation**
+
+Bare minimum: Test statistical model with simulated observations from scientific model
+
+Golem might be broken
+
+Even working golems might not deliver what you hoped
+
+Strong test: *Simulation-Based Calibration*
+
+*Quadratic Approximate Posterior*
+```{r}
+alpha <- 70 # When an invidual has average height, expected weight is 70
+beta <- 0.5
+sigma <- 5
+n_individuals <- 100
+H <- runif(n_individuals, 130, 170)
+mu <- alpha + beta * (H-mean(H))
+W <- rnorm(n_individuals, mu, sigma)
+dat <- list(H=H, W=W, Hbar=mean(H))
+
+m_validate <- quap(
+  alist(
+    W ~ dnorm(mu, sigma),
+    mu <- a + b * (H-Hbar),
+    a ~ dnorm(60,10),
+    b ~ dlnorm(0,1),
+    sigma ~ dunif(0,10)
+  ), data=dat
+)
+
+precis(m_validate)
+```
+
+**With real data**
+```{r}
+dat <- list(
+  W = d2$weight,
+  H = d2$height,
+  Hbar = mean(d$height))
+
+m_adults <- quap(
+  alist(
+    W ~ dnorm(mu, sigma),
+    mu <- a + b * (H-Hbar),
+    a ~ dnorm(60,10),
+    b ~ dlnorm(0,1),
+    sigma ~ dunif(0,10)
+  ), data=dat
+)
+
+precis(m_adults)
+```
+
+**06. Posterior predictions**
+
+**Obey the law**
+
+First Law of Statistical Interpretation:
+The *paramaters are not indepndent* of one another and cannot always be independently interpreted
+
+Instead:
+Push out *posterior predictions* and describe/interpret those:
+```{r}
+post <- extract.samples(m_adults)
+head(post)
+```
+
+*Posterior predictive distribution*
+(1) Plot the sample
+- Plot the data (scatter)
+
+(2) Plot the posterior mean
+- Posterior mean is the posterior distribution of intercept and slope and take the mean of it, there's a center line. Most plausible line. Lots of other lines, but this is the most plausible. Not our answer.
+
+(3) Plot the uncertainty of the mean
+- Envelope of uncertainity, high probability compatibility region around posterior mean
+
+(4) Plot uncertainty of predictions
+- Incorporation of sigma regarding the scatter
+- Give us a way to generate predictions, and also check how the model learned the data.
+
+(section 4.4.3 in book)
+```{r}
+# plot the data
+col2 <- col.alpha(2,0.8)
+plot(d2$height, d2$weight, col=col2, lwd=3,
+     cex=1.2, xlab="height (cm)", ylab="weight (kg)")
+
+# expectation with 99% compatibility interval
+xeq <- seq(from=130, to=190, len=50)
+mu <- link(m_adults, data=list(H=xseq, Hbar=mean(d2$height)))
+lines(xseq, apply(mu,2,mean), lwd=4)
+shade(apply(mu, 2, PI, prob=0.99), xseq, col=col.alpha(2,0.5))
+
+# 89% prediction interval
+W_sim <-sim(m_adults, data=list(H=xseq, Hbar=mean(d2$height)))
+shade(apply(W_sim, 2, PI, prob=0.89), xseq,
+      col=col.alpha(1,0.3))
+```
+
+**07. Summary**
+
+Had to deal with a lot of machinery and paramaters to get to the function of weight and height, no way out of it now. More work will make this motor memory.
