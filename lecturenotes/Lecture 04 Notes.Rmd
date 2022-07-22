@@ -1,0 +1,315 @@
+---
+title: "Statistical Rethinking Lecture 04"
+output: html_notebook
+---
+
+**01. Introduction**
+
+**Categories, Curves & Splines**
+
+Linear models can do extra-linear things
+
+Categories (dummy, indicator & index variales)
+
+Polynomials and other simple curves
+
+Splines and other additive structures
+
+**Drawing Inferences**
+
+How to sue statistical models to get at scientific estimands?
+
+Need to incorporate causal thinking into how we:
+(1) draw the statistical model
+(2) process the results
+
+Categories: (discrete, unordered types)
+- How to cope with causes that are not continuous
+- Want to *stratify* by category (fit a separate line for each)
+
+**02. Causal Models of Weight**
+
+```{r}
+library(rethinking)
+data(Howell1)
+d <- Howell1
+d2 <- d[d$age >=18, ]
+head(d2)
+```
+
+** Thinking scientifically first**
+
+How are height, weight, and sex causally related?
+How are height, weight, and sex statistically related?
+
+The causes aren't in the data, they're reflected in the data. You can't read the causal effects off the data.
+
+For example:
+Relationship of height and weight. H -> W, H <- W
+
+Both causal models can produce same data as we seen it on the side. But scientifcally it is more reasonable to say height influences weight. If you think of intervention on height, when you change height you change weight, less mass. You can change weight without changing height though.
+
+**Think scientifically first**
+Different causal questions need different statistical models
+
+Q: Causal effect of H on W?
+Q: Causal effect of S on W?
+Q: Direct causal effect of S on W?
+
+A causal effect on statistics is not a mystical philosophical thing, it merely means we are able to predict the consequence of intervening on a variable.
+
+**From estimand to estimate**
+Causal effect of S on W? Direct causal effect of S on W?
+
+Need to model S as a categorical variable.
+
+Several ways to code categorial variables
+(1) "dummy" and indicator (0/1) variables
+(2) index variables: 1, 2, 3, 4,...
+
+We will use index variables:
+Extend to many categories with no change in code
+Better for specifiying priors
+Extend effortlessly to multi-level models
+
+Names replaced with unique integer, no order implied, just numerical substitutes. Function is index positions in a vector(list) of parameters. A vector alpha of parameters will estimate the influence of color.
+
+```{r}
+d <- Howell1
+d <- d[d$age >=18, ]
+dat <- list(
+  W = d$weight,
+  S = d$male + 1) # S=1 female, S=2 male
+
+m_SW <- quap(
+  alist(
+    W ~ dnorm(mu, sigma),
+    mu <- a[S],
+    a[S] ~ dnorm(60,10),
+    sigma ~ dunif(0,10)
+  ), data=dat)
+```
+
+quap() does indexing for you. Read as:
+
+W[i] ~ Normal(Mu[i], sigma)
+Mu[i] = alpha[Sex[index]]
+alpha[j] ~ Normal(60,10)
+sigma ~ uniform (0,10)
+
+```{r}
+# posterior mean W
+post <- extract.samples(m_SW)
+dens(post$a[,1], xlim=c(39,50), lwd=3, col=2, xlab="posterior mean weight (kg)")
+dens(post$a[,2], lwd=3, col=4, add=TRUE)
+```
+Read as "men are reliably heavier *on average* but not reliably heavier
+```{r}
+# posterior W distrubtions
+W1 <- rnorm(1000, post$a[, 1], post$sigma)
+W2 <- rnorm(1000, post$a[, 2], post$sigma)
+dens(W1, xlim=c(20,70), ylim=c(0,0.085),
+     lwd=3, col=2, xlab="posterior mean weight (kg)")
+dens(W2, lwd=3, col=4, add=TRUE)
+```
+**04. Contrasts**
+
+**Always Be Contrasting**
+Need to compute **contrast**, the difference between the categories
+
+It is **never** legitimate to compare **overlap** in parameters
+- This means no comparing *confidence intervals* or *p-values* either because they are strongly correlated. Have to compute the difference.
+- If there's two parameters of interest, you have to compute their difference and then look at confidence interval of that difference.
+
+Must compute **contrast distribution**
+
+If there's uncertatinty with a paramater maybe associated with uncertatinity with another paramater. Never legitimate to compare the overlap. Need to find the distribution of the difference of predicted weight (from above example)
+
+**Causal contrast**
+```{r}
+str(post)
+```
+
+```{r}
+# causal contrast (in means)
+mu_contrast <- post$a[, 2] - post$a[, 1]
+dens(mu_contrast, xlim=c(3,10), lwd=3, col=1, xlab="posterior mean weight contrast(kg)")
+```
+* Bracket notation for column of interest a[,2] is all samples in second column
+
+```{r}
+# posterior W distributions
+W1 <- rnorm(1000, post$a[,1], post$sigma)
+W2 <- rnorm(1000, post$a[,2], post$sigma)
+
+# contrast
+W_contrast <- W2 - W1
+dens(W_contrast, xlim=c(-25,35), lwd=3, col=1, xlab="posterior weight contrast (kg)")
+
+# proportion above zero
+sum(W_contrast > 0) / 1000
+sum(W_contrast < 0) / 1000
+```
+How to read: 82% is where men are taller, 18% is where women are taller. Consequence of significant overlap in distributions.
+
+**From estimand to estimate**
+Our two estimands: Causal effect of birth sex on weight, direct causal effect of S on weight. Need to add height to the model.
+
+**05. Estimating a Direct Effect**
+```{r}
+d <- Howell1
+d <- d[d$age >=18, ]
+dat <- list(
+  W = d$weight,
+  H = d$height,
+  Hbar = mean(d$height),
+  S = d$male + 1) # S=1 female, S=2 male
+
+m_SHW <- quap(
+  alist(
+    W ~ dnorm(mu, sigma),
+    mu <- a[S],
+    a[S] ~ dnorm(60,10),
+    b[S] ~ dlnorm(0,1), #LogNormal
+    sigma ~ dunif(0,10)
+  ), data=dat)
+```
+
+**Contrasts at each height**
+
+(1) Compute posterior predictive for women
+(2) Compute posterior predictive for men
+(3) Subtract (2) from (1)
+(4) Plot distribution at each height
+
+At every height value, we're going to compute difference in posterior predictions. Stratifying by sex, is there any direct effect of sex on weight after we accounted for effect on height? We are looking at each height value and saying "are the sexes different?"
+
+*Double check below chunk*
+```{r}
+xseq <- seq(from=130, to=190, len=50)
+
+muF <- link(m_SHW, data=list(S=rep(1,50), H=xseq, Hbar=mean(d$height)))
+  
+muM <- link(m_SHW, data=list(S=rep(2,50), H=xseq, Hbar=mean(d$height)))
+
+mu_contrast <- muF - muM
+plot(NULL, xlim=range(xseq), ylim=c(-6,8), xlab="height (cm)", ylab="weight contrast (F-M)")
+lines(xseq, apply(muF,2,mean), lwd=3, col=2)
+lines(xseq, apply(muM,2,mean), lwd=3, col=4)
+for (p in c(0.5,0.6,0.7,0.8,0.9,0.99))
+  shade(apply(mu_contrast,2,PI,prob=p), xseq)
+abline(h=0,lty=2)
+```
+
+**06. Bayesian Causal Inference**
+
+We used two statistical models to for two estimands. But alternative and equivalent approach is to use one model of entire causal system. Then use joint posterior to compute each estimand.
+
+**Full Luxury Bayes**
+```{r}
+m_SHW_full <- quap(
+  alist(
+    #weight
+    W ~ dnorm(mu, sigma),
+    mu <- a[S] + b[S] * (H-Hbar),
+    a[S] ~ dnorm(60,10),
+    b[S] ~ dlnorm(0,1),
+    sigma ~ dunif(0,10),
+    
+    #height
+    H ~ dnorm(nu, tau),
+    nu ~ h[S],
+    h[S] ~ dnorm(160,10),
+    tau ~ dunif(0,10)
+  ), data=dat)
+precis(m_SHW_full, depth=2)
+```
+- Causal effect is consequence of intervention
+- Tau is the standard deviation around height
+
+**Simulating Interventions**
+
+Total causal effect of S on W:
+Consequences of changing S at birth
+
+"p(W|do(S))"
+```{r}
+
+# Extract samples from posterior distribution
+post <- extract.samples(m_SHW_full)
+
+# Conveinence variable for Hbar
+Hbar <- dat$Hbar
+
+# Number of simulated people
+n <- 1e4
+
+# "With" in R is a way of creating scope. "With the posterior distribution do all this stuff in braces". Don't need $ value, local scope created
+
+with(post, {
+  # simulate W for S=1, simulate 1e4 adult women, imaging intervention on sex
+  H_S1 <- rnorm(n, h[, 1], tau)
+  W_S1 <- rnorm(n, a[, 1] + b[, 1] * (H_S1-Hbar), sigma)
+  
+  # simulate W for S=2, simulate 1e4 adult men, imagining intervention on sex
+  H_S2 <- rnorm(n, h[, 2], tau)
+  W_S2 <- rnorm(n, a[, 2] + b[, 2] * (H_S2-Hbar), sigma)
+  
+  # compute contrast, do operatior is the intervention operator
+  W_do_S <<- W_S2 - W_S1})
+dens(W_do_S, xlab="posterior weight contrast(kg)", lwd=3, col=1)
+```
+
+**Inference with linear models**
+
+With more than two variables, scientific (causal) model and statistical model not always same
+
+One **stat model** for each estimand
+
+(1) State each estimand
+(2) Design unique statistical model for each
+(3) Compute each estimand
+
+OR----------
+
+One **simulation** for each estimand
+
+(1) State each estimand
+(2) Compute joint posterior for causal system
+(3) Simulate each estimand as an intervention
+
+**Categorial variables**
+
+Easy to use with index coding
+Must later use samples to compute relevant contrasts
+Always summarize (mean, interval) as the last step
+Want **mean difference** of two paramaters and not **difference of means**
+
+**07. Curves From Lines**
+```{r}
+library(rethinking)
+data(Howell1)
+```
+
+H -> W obviously not linear
+
+Linear models can easily fit curves, but this is not **mechanistic**
+
+Linear models can easily fit curves, two popular strategies
+(1) polynomials - be wary
+(2) splines and generalized additive models - better
+
+**08. Polynomial linear models**
+Extend equation for mean with higher order polynomial terms.
+
+Problems: strange symmetries, explosive uncertainty at edges
+
+**Curves and Splines**
+- Can build very non-linear functions from linear pieces
+- Polynomials and splines are powerful geocentric devices
+- Adding scientific information always helps
+e.g. Weight only increases with height
+e.g. Height only increases with age, then levels off
+
+Ideally statisical model has some form as a scientific model.
+
