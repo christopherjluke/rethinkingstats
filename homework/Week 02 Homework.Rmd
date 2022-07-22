@@ -1,9 +1,9 @@
 ---
-title: "Statistical Rethinking Homework Week 02
+title: "Statistical Rethinking Homework Week 02"
 output: html_notebook
 ---
 
-**01. onstruct a linear regression of weight as predicted by height, using the adults (age 18 or greater) from the Howell1 dataset. The heights listed below were recorded in the !Kung census, but weights were not recorded for these individuals. Provide predicted weights and 89% compatibility intervals for each of these individuals.**
+**01. Construct a linear regression of weight as predicted by height, using the adults (age 18 or greater) from the Howell1 dataset. The heights listed below were recorded in the !Kung census, but weights were not recorded for these individuals. Provide predicted weights and 89% compatibility intervals for each of these individuals.**
 
 (1) 140
 (2) 160
@@ -108,7 +108,7 @@ Modified model above to include sex as an index variable (S)
 ```{r}
 plot(d$age, d$weight, lwd=3, col=ifelse(d$male==1,4,2),
      xlab="Age (in years)", ylab="Weight (in kg)")
-Aseq <- 0:13 # Age sequence
+Aseq <- 0:12 # Age sequence
 
 # girls
 muF <- link(wk2.3,data=list(A=Aseq,S=rep(1,13)))
