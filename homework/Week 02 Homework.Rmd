@@ -1,0 +1,134 @@
+---
+title: "Statistical Rethinking Homework Week 02
+output: html_notebook
+---
+
+** 01. onstruct a linear regression of weight as predicted by height, using the adults (age 18 or greater) from the Howell1 dataset. The heights listed below were recorded in the !Kung census, but weights were not recorded for these individuals. Provide predicted weights and 89% compatibility intervals for each of these individuals.
+
+(1) 140
+(2) 160
+(3) 175
+
+```{r}
+library(rethinking)
+data(Howell1)
+d <- Howell1
+d2 <- d[d$age >=18, ]
+Hbar <- mean (d2$height)
+dat <- list(W=d2$weight, H=d2$height, Hbar=Hbar)
+head(d2)
+```
+Isolate adults ages 18 or greater in the Howell1 data set and create new dataframe "d2".
+
+```{r}
+wk2.1 <- quap(
+  alist(
+    W ~ dnorm(mu, sigma),
+    mu <- a + b * (H-Hbar),
+    a ~ dnorm(60,10),
+    b ~ dlnorm(0,1),
+    sigma ~ dunif(0,10)
+  ), data=dat)
+```
+
+Construct linear prediction model and doing the regression
+
+```{r}
+data2 <- list(H=c(140, 160, 175), Hbar=Hbar)
+h_sim <- sim(wk2.1, data=data2) # Height simulation
+Ew <- apply(h_sim,2,mean) # Expected weight
+h_ci <- apply(h_sim,2,PI,prob=0.89) # 89% compabitibility interval
+```
+
+Posterior predictions for each case in the table by doing sim since we are trying to predict an individuals height. Relevant interval includes the Gaussian distribution from sigma.
+
+```{r}
+table <- cbind(H=c(140,160,175), Ew, L89=h_ci[1,], U89=h_ci[2,])
+round(table,1)
+```
+
+Height, Expected Weight, Lowerbound of 89% compatibility interval, Upper bound of 89% compatibility interval.
+
+**02. From the Howell1 dataset, consider only the people younger than 13 years old. Estimate the causal association between age and weight. Assume that age influences weight through two paths. First, age influences height, and height influences weight. Second, age directly influences weight through age-related changes in muscle growth and body proportions. All of this immplies this causal model (DAG):
+A -> H, H -> W, A -> W
+Use a linear regression to estimate the total (not just direct) causal effect of each year of growth on weight. Be sure to carefully consider the priors. Try using prior predictive simulation to asses what they imply.**
+
+```{r}
+library(rethinking)
+data(Howell1)
+d <- Howell1
+d <- d[d$age < 13, ]
+
+# sim from prior
+n <- 10
+a <- rnorm(n,5,1) # 5 for average birth weight
+b <- rlnorm(n,0,1)
+plot(NULL, xlim=range(d$age), ylim=range(d$weight),
+     xlab="Age", ylab="Weight")
+for (i in 1:n) abline(a[i], b[i], lwd=3, col=4)
+
+```
+
+Simulation using priors.
+
+```{r}
+wk2.2 <- quap(
+  alist(
+    W ~ dnorm(mu, sigma),
+    mu <- a + b*A,
+    a ~ dnorm(5,1),
+    b ~ dlnorm(0,1),
+    sigma ~ dexp(1)
+  ), data=list(W=d$weight,A=d$age))
+
+precis(wk2.2)
+```
+Causal effect can be found in b. 89% interval is between 1.29 and 1.46 kilograms per year.
+
+**03. Now suppose the causal association between age and weight might be different for boys and girls. use a single linear regression, with a categorical variable for sex, to estimate teh total causal effect of age on weight separately for boys and girls. How do girls and boys differ? Provide one or more posterior contrasts as summary.
+```{r}
+library(rethinking)
+data(Howell1)
+d <- Howell1
+d <- d[d$age <13, ]
+data <- list(W=d$weight, A=d$age, S=d$male+1) # Create index variable for sex
+
+wk2.3 <- quap(
+  alist(
+    W ~ dnorm(mu, sigma),
+    mu <- a[S] + b[S]*A,
+    a[S] ~dnorm(5, 1), # using same 5kg at birth
+    b[S] ~ dlnorm(0,1),
+    sigma ~ dexp(1)
+  ), data=data)
+```
+Modified model above to include sex as an index variable (S)
+```{r}
+plot(d$age, d$weight, lwd=3, col=ifelse(d$male==1,4,2),
+     xlab="Age (in years)", ylab="Weight (in kg)")
+Aseq <- 0:13 # Age sequence
+
+# girls
+muF <- link(wk2.3,data=list(A=Aseq,S=rep(1,13)))
+shade(apply(muF,2,PI,0.99), Aseq, col=col.alpha(2,0.5))
+
+# boys
+
+muM <- link(wk2.3, data=list(A=Aseq, S=rep(2,13)))
+shade(apply(muF,2,PI,0.99), Aseq, col=col.alpha(4,0.5))
+lines(Aseq, apply(muM,2,mean), lwd=3, col=4)
+```
+Using same data (ages less than 13) it looks like boys are heavier than girls and gain weight at a slightly faster rate. 
+```{r}
+Aseq <- 0:12
+mu1 <- sim(wk2.3, data=list(A=Aseq, S=rep(1,13)))
+mu2 <- sim(wk2.3, data=list(A=Aseq, S=rep(2,13)))
+mu_contrast <- mu1
+for (i in 1:13) mu_contrast[,i] <- mu2[,i] - mu1[,i]
+plot(NULL, xlim=c(0,13), ylim=c(-15,15), xlab="age",
+     ylab="Weight difference (boys - girls)")
+for (p in c(0.5,0.67,0.89,0.99))
+  shade(apply(mu_contrast,2,PI,prob=p), Aseq)
+abline(h=0,lty=2,lwd=2)
+```
+Boys tend to be more heavier than girls (girls weight expressed as 0 through -15), but there is overlap in the middle. Difference increases by age (distribution goes up).
