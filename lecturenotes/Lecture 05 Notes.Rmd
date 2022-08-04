@@ -1,0 +1,299 @@
+---
+title: "Statistical Rethinking Lecture 05"
+output: html_notebook
+---
+
+**01. Introduction**
+
+Spurious correlations. Waffle House reliably statistically associated with divorce rates.
+States with more WH's per million also see high divorce rates, implausible causal relationship.
+Nature is full of correlations, this makes it a bad guide to causal relationships.
+Have to go beyond associations in scientific models.
+
+**02. Elemental Confounds**
+Four elemental confounds:
+(1) The fork
+(2) The pipe
+(3) The collider
+(4) The descendant
+
+**03. The Fork**
+X and Y are associated 
+Share a common cause Z
+Once stratified by Z, no association
+
+Confounder creates a statistical association between X and Y.
+```{r}
+library(rethinking)
+# X <- Z -> Y
+
+# 1000 observations for 3 Bernoulli Variables, which are 0,1 variables.
+# Coin flip distribution, but doesnt have to be fair
+n <- 1000
+Z <- rbern(n, 0.5) # Confounder, fair coin
+X <- rbern(n, (1-Z)*0.1 +  Z*0.9) # Same distributions but independent of one another
+Y <- rbern(n, (1-Z)*0.1 + Z*0.9) # Conditional on Z
+
+# When Z is zero, prob of .1, when Z is 1, prob of .9
+
+# Stratifying correlations, correlations are small, Y and X become indenpendent of each other
+table(X, Y)
+cor(X,Y)
+cor(X[Z==0], Y[Z==0])
+cor(X[Z==1], Y[Z==1])
+```
+For all values of X and Y, the black line is best rfit egression line, due to common cause Z
+Values of X and Y where Z = 1 or 0 are in red,  no meaningful association
+
+```{r}
+
+# Continuous variables
+
+cols <- c(4,2)
+
+N <- 300
+Z <- rbern(N)
+X <- rnorm(N, 2*Z-1)
+Y <- rnorm(N, 2*Z-1)
+plot(X, Y, col=cols[Z+1], lwd=3)
+abline(lm(Y[Z==1]~X[Z==1]), col=2, lwd=3)
+abline(lm(Y[Z==0]~X[Z==0]), col=4, lwd=3)
+abline(lm(Y~X), lwd=3)
+```
+For all values of X and Y, the black line is best rfit egression line, due to common cause Z
+Values of X and Y where Z = 1 or 0 are in red,  no meaningful association
+
+**Fork Examples**
+
+Why do regions of the USA with higher rates of marriage also have higher rates of divorce?
+M -?-> D
+States where people get married at higher rates also get divorced at a higher rate.
+Does marriage cause divorce?
+
+**Marrying the owl**
+(1) Estimand: Causal effect of marriage rate on divorce rate
+(2) Scientific model
+(3) Statistical model
+(4) Analyze
+
+Thinking about other influences on divorce rate, median age in marriage (varries a lot in the states)
+
+Fork: M <- A -> D
+
+To estimate direct effect of M, need to break the fork.
+Break the fork by **stratifying** by A
+
+**What does it mean to stratify by continuous variable?**
+Age and marriage is not binary.
+Use in your model whatever functional relationship you've asigned that the confounder has on the outcome.
+For every value of confounder, you have different expectation for outcome.
+Estimate different relationship between marriage rate or whatever cause we're interested in and the outcome.
+In a linear regression its adding to the linear model another term with confounder variable, and a slope as well.
+
+Linear regressions with more than one predictor variable - need to standardize
+
+**Standardize The Owl**
+*Standardize*: Subtract mean and dvide by standard deviation
+Computation works better
+Easy to choose sensible priors, we have some general understanding of how big effects can be
+in terms of changes in standard deviations
+
+```{r}
+# prior predictive simulation
+n <- 20
+a <- rnorm(n,0,10)
+bM <- rnorm(n,0,10)
+bA <-rnorm(n,0,10)
+plot(NULL, xlim=c(-2,2), ylim=c(-2,2),
+     xlab="Median age of marriange (standardized)",
+     ylab="Divorce rate (standardized)")
+Aseq <- seq(from=-3, to=3, len=30)
+for (i in 1:n) {
+  mu <- a[i] + bA[i] * Aseq
+  lines(Aseq, mu, lwd=2, col=2)
+}
+```
+Prior for the slopes is really broad. Impossible relationships.
+```{r}
+# prior predictive simulation
+n <- 20
+a <- rnorm(n,0,0.2)
+bM <- rnorm(n,0,0.5)
+bA <-rnorm(n,0,0.5)
+plot(NULL, xlim=c(-2,2), ylim=c(-2,2),
+     xlab="Median age of marriange (standardized)",
+     ylab="Divorce rate (standardized)")
+Aseq <- seq(from=-3, to=3, len=30)
+for (i in 1:n) {
+  mu <- a[i] + bA[i] * Aseq
+  lines(Aseq, mu, lwd=2, col=2)
+}
+```
+With simple linear regresions you can have bad priors and get away with it.
+Good to practice now for scientifically sensible priors.
+
+**Marrying the Owl / Analyize the Data**
+```{r}
+# model
+library(rethinking)
+data("WaffleDivorce")
+d <- WaffleDivorce
+dat <- list(
+  D = standardize(d$Divorce),
+  M = standardize(d$Marriage),
+  A = standardize(d$MedianAgeMarriage)
+)
+
+m_DMA <- quap(
+  alist(
+    D ~ dnorm(mu,sigma),
+    mu <- a + bM*M + bA*A,
+    a ~ dnorm(0,0.2),
+    bM ~ dnorm(0,0.5),
+    bA ~ dnorm(0,0.5),
+    sigma ~ dexp(1)
+  ), data=dat
+)
+plot(precis(m_DMA))
+```
+An exponential distribution is constrained to be positive, SD's need to be positive
+The only information in an exponational distribution is the average displace
+Exp(1) is 1 standard deviation
+
+**04. The Pipe**
+Statistically very similar to the fork, but structurally very different.
+- X and Y are associated
+- Influence of X on Y transmitted through Z
+- Once stratified by Z, no association
+- Z is a "mediator"
+```{r}
+n <- 1000
+X <- rbern(n, 0.5)
+Z <- rbern(n, (1-X)*0.1 + X*0.9)
+Y <- rbern(n, (1-Z)*0.1 + Z*0.9)
+cor(X, Y)
+
+cols <- c(4,2)
+N <- 300
+X <- rnorm(N)
+Z <- rbern(N, inv_logit(X))
+Y <- rnorm(N, (2*Z-1))
+
+plot(X, Y, col=cols[Z+1], lwd=3)
+abline(lm(Y[Z==1]~X[Z==1]), col=2, lwd=3)
+abline(lm(Y[Z==0]~X[Z==0]), col=4, lwd=3)
+abline(lm(Y~X), lwd=3)
+```
+
+*Plant Growth Experiment from Chapter 5*
+
+100 plants, half-treated with anti-fungal
+Measure growth and fungus
+Estimand: Causal effect of treatment on plant growth
+
+The path T -> F -> H sub 1 is a pipe
+If you stratify by fungal status you block "the path"
+Whatever indirect causal effect of treatment will be statistically removed from the results
+
+**Post-Treatment Bias**
+Stratifying by (conditioning on) consequence of treatment induces post-treatment bias
+
+Might conclude that treatment doesn't work when it actually does
+
+Consequences of treatment should not usually be induced in your statistical model
+
+Doing experiments is no protection against bad causal inference
+
+**06. The Collider**
+X and Y are not associated (share no cause)
+X and Y both influence Z
+Once stratified by Z, X and Y associated
+
+When we learn/condition on Z, there is a smaller range of the values of X and Y that could jointly produce
+any particular value of Z.
+
+```{r}
+n <- 1000
+X <- rbern(n, 0.5)
+Y <- rbern(n, 0.5)
+Z <- rbern(n, ifelse(X+Y > 0, 0.9,0.2))
+cor(X,Y)
+cor(X[Z==0], Y[Z==0])
+cor(X[Z==1], Y[Z==1])
+```
+Explanation is simple, when we learn Z (stratify by it), there are a constrained range (combonation of X and Y)
+that can produce 0. Different values of Z allow different combos of X and Y that can produce that value.
+```{r}
+cols <- c(4,2)
+
+N <- 300
+X <- rnorm(N)
+Z <- rnorm(N)
+Z <- rbern(N, inv_logit(2*X+2*Y-2))
+
+plot(X, Y, col=cols[Z+1], lwd=3)
+abline(lm(Y[Z==1]~X[Z==1]), col=2, lwd=3)
+abline(lm(Y[Z==0]~X[Z==0]), col=4, lwd=3)
+abline(lm(Y~X), lwd=3)
+```
+In a regression model, if Z is a collider and not a confound, when you add Z and you see it creates an association
+you can mistake the association for causal because you think you removed a confound
+
+**Collider example**
+Some biases arise from selection
+Suppose: 200 grant applications
+Each sourced on newsworthiness and trustworthiness
+No association in population
+Strong association after selection
+
+N -> A <- T
+N and T are joint influences on A
+
+Awarded grants must have been sufficently **newsworthy** or **trustworthy**
+
+Few grants are high in both
+
+Results in **negative** association, conditioning on award
+
+**Endogenous Colliders**
+Collider bias can arise through statistical processing
+
+Endogenous selection: IF you condition on (stratify by) a collider,
+you creates phantom non-causal associations
+
+Example: Does age influence happiness?
+
+**Age and Happiness**
+Estimand: Influence of age on happiness
+Possible confound: marital status (H -> M <- A)
+Suppose age has zero influence on happiness
+But that both age and happiness influence marital status
+
+
+**07. The Descendant**
+How a descendant behaves depends upon what it is attatched to.
+
+X and Y are causally associatied through Z
+A holds information about Z
+Once stratified by A, X, and Y less associated
+
+```{r}
+n <- 1000
+X <- rbern(n, 0.5)
+Y <- rbern(n, (1-X)*0.1 + X*0.9)
+Z <- rbern(n, (1-Z)*0.1 + Z*0.9)
+A <- rbern(n, (1-Z)*0.1 + Z*0.9)
+cor(X, Y)
+cor(X[A==0], Y[A==0])
+cor(X[A==1], Y[A==1])
+```
+
+**Descendants are everywhere**
+Lots of the measurements we take are not really the things we want to measure.
+Many measurements are **proxies** of what we want to measure.
+Factor analysis
+Measurement error
+Social networks
+
+**Unobserved Confounds**
+Unmeasured causes (U) exist and can ruin your day
